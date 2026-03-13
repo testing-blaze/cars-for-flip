@@ -1,0 +1,5 @@
+[build]
+  # We commit Flutter's web build output to git, so Netlify should just serve it.
+  publish = "build/web"
+  command = ""
+
