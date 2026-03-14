@@ -4,6 +4,7 @@ import '../models/entities.dart';
 import '../services/repositories.dart';
 import '../widgets/glass_container.dart';
 import 'car_detail_page.dart';
+import 'report_page.dart';
 
 class YearOverviewPage extends StatefulWidget {
   final Profile profile;
@@ -153,6 +154,17 @@ class _YearOverviewPageState extends State<YearOverviewPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.profile.name),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.assessment),
+            tooltip: 'View Report',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ReportPage(profile: widget.profile),
+              ),
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openCarDetail(),
