@@ -38,6 +38,7 @@ class _CarDetailPageState extends State<CarDetailPage> {
   final _costAmountController = TextEditingController();
   DateTime _costDate = DateTime.now();
   String _costStatusValue = 'Unpaid';
+  String? _editingCostId;
 
   Car? _car;
   List<CarCostItem> _items = [];
@@ -110,20 +111,31 @@ class _CarDetailPageState extends State<CarDetailPage> {
     final amount = double.tryParse(_costAmountController.text.trim());
     if (amount == null) return;
 
-    await _costRepo.addCostItem(
-      carId: _car!.id,
-      date: _costDate,
-      status: _costStatusValue,
-      description: _costDescriptionController.text.trim(),
-      notes: '',
-      amount: amount,
-    );
+    if (_editingCostId == null) {
+      await _costRepo.addCostItem(
+        carId: _car!.id,
+        date: _costDate,
+        status: _costStatusValue,
+        description: _costDescriptionController.text.trim(),
+        notes: '',
+        amount: amount,
+      );
+    } else {
+      await _costRepo.updateCostItem(
+        id: _editingCostId!,
+        date: _costDate,
+        status: _costStatusValue,
+        description: _costDescriptionController.text.trim(),
+        amount: amount,
+      );
+    }
 
     _costDescriptionController.clear();
     _costAmountController.clear();
     setState(() {
       _costStatusValue = 'Unpaid';
       _costDate = DateTime.now();
+      _editingCostId = null;
     });
 
     await _loadItems();
@@ -149,6 +161,16 @@ class _CarDetailPageState extends State<CarDetailPage> {
   Future<void> _deleteCostItem(String id) async {
     await _costRepo.deleteCostItem(id);
     await _loadItems();
+  }
+
+  void _startEditCostItem(CarCostItem item) {
+    setState(() {
+      _editingCostId = item.id;
+      _costDate = item.date;
+      _costDescriptionController.text = item.description;
+      _costAmountController.text = item.amount.toStringAsFixed(2);
+      _costStatusValue = item.status.isEmpty ? 'Unpaid' : item.status;
+    });
   }
 
   Future<void> _pickCostDate() async {
@@ -415,8 +437,11 @@ class _CarDetailPageState extends State<CarDetailPage> {
                         const SizedBox(width: 12),
                         FilledButton.icon(
                           onPressed: _addCostItem,
-                          icon: const Icon(Icons.add),
-                          label: const Text('Add row'),
+                          icon: Icon(_editingCostId == null
+                              ? Icons.add
+                              : Icons.save),
+                          label: Text(
+                              _editingCostId == null ? 'Add row' : 'Save row'),
                         ),
                       ],
                     ),
@@ -444,12 +469,20 @@ class _CarDetailPageState extends State<CarDetailPage> {
                               return DataRow(
                                 cells: [
                                   DataCell(
-                                      Text(dateFormat.format(item.date))),
-                                  DataCell(Text(item.description)),
+                                      Text(dateFormat.format(item.date)),
+                                      onTap: () => _startEditCostItem(item)),
+                                  DataCell(
+                                    Text(item.description),
+                                    onTap: () => _startEditCostItem(item),
+                                  ),
                                   DataCell(
                                     Text(item.amount.toStringAsFixed(2)),
+                                    onTap: () => _startEditCostItem(item),
                                   ),
-                                  DataCell(Text(item.status)),
+                                  DataCell(
+                                    Text(item.status),
+                                    onTap: () => _startEditCostItem(item),
+                                  ),
                                   DataCell(
                                     IconButton(
                                       tooltip: 'Delete row',

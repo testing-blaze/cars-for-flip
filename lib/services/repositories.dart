@@ -188,5 +188,26 @@ class CarCostRepository {
   Future<void> deleteCostItem(String id) async {
     await supabase.from('car_cost_items').delete().eq('id', id);
   }
+
+  Future<CarCostItem> updateCostItem({
+    required String id,
+    required DateTime date,
+    required String status,
+    required String description,
+    required double amount,
+  }) async {
+    final res = await supabase
+        .from('car_cost_items')
+        .update({
+          'date': date.toIso8601String(),
+          'status': status,
+          'description': description,
+          'amount': amount,
+        })
+        .eq('id', id)
+        .select()
+        .single();
+    return CarCostItem.fromJson(res);
+  }
 }
 

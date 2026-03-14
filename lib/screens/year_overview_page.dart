@@ -140,13 +140,13 @@ class _YearOverviewPageState extends State<YearOverviewPage> {
   @override
   Widget build(BuildContext context) {
     final visibleCars = _filteredCars;
-    final totalPnL = visibleCars.fold<double>(
-      0,
-      (sum, row) =>
-          sum +
-          ((row['selling_price'] as num?)?.toDouble() ?? 0) -
-          (row['total_cost'] as double? ?? 0),
-    );
+    final totalPnL = visibleCars.fold<double>(0, (sum, row) {
+      final status = (row['status'] as String? ?? '').toLowerCase();
+      if (status != 'sold') return sum;
+      final selling = (row['selling_price'] as num?)?.toDouble() ?? 0;
+      final totalCost = (row['total_cost'] as double?) ?? 0;
+      return sum + selling - totalCost;
+    });
     final totalPnLText =
         (totalPnL >= 0 ? '+${totalPnL.toStringAsFixed(2)}' : totalPnL.toStringAsFixed(2));
 
