@@ -4,6 +4,7 @@ import '../models/entities.dart';
 import '../services/repositories.dart';
 import '../widgets/glass_container.dart';
 import 'car_detail_page.dart';
+import 'nauman_calculator_page.dart';
 import 'report_page.dart';
 
 class YearOverviewPage extends StatefulWidget {
@@ -150,11 +151,22 @@ class _YearOverviewPageState extends State<YearOverviewPage> {
     });
     final totalPnLText =
         (totalPnL >= 0 ? '+${totalPnL.toStringAsFixed(2)}' : totalPnL.toStringAsFixed(2));
+    final isNauman = widget.profile.name.toLowerCase().contains('nauman');
 
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.profile.name),
         actions: [
+          if (isNauman)
+            IconButton(
+              icon: const Icon(Icons.calculate_outlined),
+              tooltip: 'Nauman Calculator',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => NaumanCalculatorPage(profile: widget.profile),
+                ),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.assessment),
             tooltip: 'View Report',
