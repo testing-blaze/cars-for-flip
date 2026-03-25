@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/nauman_calc_entry.dart';
+import '../services/repositories.dart';
 import '../utils/nauman_calc_storage.dart';
 import '../widgets/glass_container.dart';
 import '../models/entities.dart';
@@ -17,6 +18,7 @@ class NaumanCalculatorPage extends StatefulWidget {
 
 class _NaumanCalculatorPageState extends State<NaumanCalculatorPage> {
   final _storage = NaumanCalcStorage();
+  final _repo = NaumanCalcRepository();
 
   final _carNameController = TextEditingController();
   final _accidentsController = TextEditingController();
@@ -97,11 +99,22 @@ class _NaumanCalculatorPageState extends State<NaumanCalculatorPage> {
 
   Future<void> _loadSaved() async {
     setState(() => _loadingSaved = true);
-    final entries = await _storage.loadEntries(widget.profile.id);
-    setState(() {
-      _saved = entries;
-      _loadingSaved = false;
-    });
+    try {
+      final entries = await _repo.getEntriesForProfile(widget.profile.id);
+      if (!mounted) return;
+      setState(() {
+        _saved = entries;
+        _loadingSaved = false;
+      });
+    } catch (_) {
+      // Local fallback if the Supabase table isn't created or isn't reachable.
+      final entries = await _storage.loadEntries(widget.profile.id);
+      if (!mounted) return;
+      setState(() {
+        _saved = entries;
+        _loadingSaved = false;
+      });
+    }
   }
 
   static double _parseDouble(String raw) {
@@ -153,29 +166,55 @@ class _NaumanCalculatorPageState extends State<NaumanCalculatorPage> {
 
     final carName = _carNameController.text.trim();
     // Let users save even if name is empty (but keep it consistent for display).
-    final entry = NaumanCalcEntry(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
-      profileId: widget.profile.id,
-      createdAt: DateTime.now(),
-      carName: carName.isEmpty ? '(Untitled)' : carName,
-      accidents: _accidents,
-      carfax: _carfax,
-      expectedSellingPrice: _expectedSellingPrice,
-      transportation: _transportation,
-      auctionFee: _auctionFee,
-      dealershipDoc: _dealershipDoc,
-      repairFrontDoorShellPaint: _repairFrontDoorShellPaint,
-      repairFender: _repairFender,
-      repairFrontLight: _repairFrontLight,
-      repairBumperFixBayArea: _repairBumperFixBayArea,
-      profit: _profit,
-      repairsTotal: _repairsTotal,
-      total: _total,
-      finalBiddingOffer: _finalBiddingOffer,
-    );
+    final displayName = carName.isEmpty ? '(Untitled)' : carName;
 
     setState(() => _saving = true);
-    await _storage.saveEntry(widget.profile.id, entry);
+    try {
+      final entry = await _repo.addEntry(
+        profileId: widget.profile.id,
+        carName: displayName,
+        accidents: _accidents,
+        carfax: _carfax,
+        expectedSellingPrice: _expectedSellingPrice,
+        transportation: _transportation,
+        auctionFee: _auctionFee,
+        dealershipDoc: _dealershipDoc,
+        repairFrontDoorShellPaint: _repairFrontDoorShellPaint,
+        repairFender: _repairFender,
+        repairFrontLight: _repairFrontLight,
+        repairBumperFixBayArea: _repairBumperFixBayArea,
+        profit: _profit,
+        repairsTotal: _repairsTotal,
+        total: _total,
+        finalBiddingOffer: _finalBiddingOffer,
+      );
+
+      // Keep local list in sync (fast + works offline).
+      await _storage.saveEntry(widget.profile.id, entry);
+    } catch (_) {
+      // Local fallback if Supabase isn't available yet.
+      final entry = NaumanCalcEntry(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        profileId: widget.profile.id,
+        createdAt: DateTime.now(),
+        carName: displayName,
+        accidents: _accidents,
+        carfax: _carfax,
+        expectedSellingPrice: _expectedSellingPrice,
+        transportation: _transportation,
+        auctionFee: _auctionFee,
+        dealershipDoc: _dealershipDoc,
+        repairFrontDoorShellPaint: _repairFrontDoorShellPaint,
+        repairFender: _repairFender,
+        repairFrontLight: _repairFrontLight,
+        repairBumperFixBayArea: _repairBumperFixBayArea,
+        profit: _profit,
+        repairsTotal: _repairsTotal,
+        total: _total,
+        finalBiddingOffer: _finalBiddingOffer,
+      );
+      await _storage.saveEntry(widget.profile.id, entry);
+    }
     setState(() => _saving = false);
     await _loadSaved();
 
@@ -207,7 +246,12 @@ class _NaumanCalculatorPageState extends State<NaumanCalculatorPage> {
     );
     if (confirmed != true) return;
 
-    await _storage.deleteEntry(widget.profile.id, entryId);
+    try {
+      await _repo.deleteEntry(entryId);
+    } catch (_) {
+      // Local fallback if Supabase isn't available.
+      await _storage.deleteEntry(widget.profile.id, entryId);
+    }
     await _loadSaved();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

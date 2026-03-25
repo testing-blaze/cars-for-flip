@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/entities.dart';
+import '../models/nauman_calc_entry.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -208,6 +209,70 @@ class CarCostRepository {
         .select()
         .single();
     return CarCostItem.fromJson(res);
+  }
+}
+
+class NaumanCalcRepository {
+  Future<List<NaumanCalcEntry>> getEntriesForProfile(String profileId) async {
+    final res = await supabase
+        .from('nauman_calc_entries')
+        .select()
+        .eq('profile_id', profileId)
+        .order('created_at', ascending: false);
+    return res.map(NaumanCalcEntry.fromJson).toList();
+  }
+
+  Future<NaumanCalcEntry> addEntry({
+    required String profileId,
+    required String carName,
+    required int accidents,
+    required double carfax,
+    required double expectedSellingPrice,
+    required double transportation,
+    required double auctionFee,
+    required double dealershipDoc,
+    required double repairFrontDoorShellPaint,
+    required double repairFender,
+    required double repairFrontLight,
+    required double repairBumperFixBayArea,
+    required double profit,
+    required double repairsTotal,
+    required double total,
+    required double finalBiddingOffer,
+  }) async {
+    final payload = <String, dynamic>{
+      'profile_id': profileId,
+      'car_name': carName,
+      'accidents': accidents,
+      'carfax': carfax,
+      'expected_selling_price': expectedSellingPrice,
+      'transportation': transportation,
+      'auction_fee': auctionFee,
+      'dealership_doc': dealershipDoc,
+      'repair_front_door_shell_paint': repairFrontDoorShellPaint,
+      'repair_fender': repairFender,
+      'repair_front_light': repairFrontLight,
+      'repair_bumper_fix_bay_area': repairBumperFixBayArea,
+      'profit': profit,
+      'repairs_total': repairsTotal,
+      'total': total,
+      'final_bidding_offer': finalBiddingOffer,
+    };
+
+    final res = await supabase
+        .from('nauman_calc_entries')
+        .insert(payload)
+        .select()
+        .single();
+
+    return NaumanCalcEntry.fromJson(res);
+  }
+
+  Future<void> deleteEntry(String entryId) async {
+    await supabase
+        .from('nauman_calc_entries')
+        .delete()
+        .eq('id', entryId);
   }
 }
 
