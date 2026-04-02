@@ -9,3 +9,13 @@ to = "/index.html"
 status = 200
 force = true
 
+[[headers]]
+for = "/flutter_service_worker.js"
+  [headers.values]
+  Cache-Control = "no-cache, max-age=0, must-revalidate"
+
+[[headers]]
+for = "/main.dart.js"
+  [headers.values]
+  Cache-Control = "no-cache, max-age=0, must-revalidate"
+
