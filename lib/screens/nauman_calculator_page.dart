@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/nauman_calc_entry.dart';
@@ -170,8 +172,36 @@ class _NaumanCalculatorPageState extends State<NaumanCalculatorPage> {
 
     setState(() => _saving = true);
     try {
-      final entry = await _repo.addEntry(
+      // Supabase can sometimes be slow; prevent the UI from getting stuck.
+      final entry = await _repo
+          .addEntry(
+            profileId: widget.profile.id,
+            carName: displayName,
+            accidents: _accidents,
+            carfax: _carfax,
+            expectedSellingPrice: _expectedSellingPrice,
+            transportation: _transportation,
+            auctionFee: _auctionFee,
+            dealershipDoc: _dealershipDoc,
+            repairFrontDoorShellPaint: _repairFrontDoorShellPaint,
+            repairFender: _repairFender,
+            repairFrontLight: _repairFrontLight,
+            repairBumperFixBayArea: _repairBumperFixBayArea,
+            profit: _profit,
+            repairsTotal: _repairsTotal,
+            total: _total,
+            finalBiddingOffer: _finalBiddingOffer,
+          )
+          .timeout(const Duration(seconds: 10));
+
+      // Keep local list in sync (fast + works offline).
+      await _storage.saveEntry(widget.profile.id, entry);
+    } on TimeoutException {
+      // Local fallback if Supabase isn't reachable in time.
+      final entry = NaumanCalcEntry(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
         profileId: widget.profile.id,
+        createdAt: DateTime.now(),
         carName: displayName,
         accidents: _accidents,
         carfax: _carfax,
@@ -188,9 +218,14 @@ class _NaumanCalculatorPageState extends State<NaumanCalculatorPage> {
         total: _total,
         finalBiddingOffer: _finalBiddingOffer,
       );
-
-      // Keep local list in sync (fast + works offline).
       await _storage.saveEntry(widget.profile.id, entry);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Saved locally (Supabase timeout).'),
+          ),
+        );
+      }
     } catch (_) {
       // Local fallback if Supabase isn't available yet.
       final entry = NaumanCalcEntry(
@@ -214,8 +249,17 @@ class _NaumanCalculatorPageState extends State<NaumanCalculatorPage> {
         finalBiddingOffer: _finalBiddingOffer,
       );
       await _storage.saveEntry(widget.profile.id, entry);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Saved locally (Supabase failed).'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
-    setState(() => _saving = false);
+
     await _loadSaved();
 
     if (mounted) {
@@ -303,6 +347,8 @@ class _NaumanCalculatorPageState extends State<NaumanCalculatorPage> {
   @override
   Widget build(BuildContext context) {
     final totalColor = _finalBiddingOffer >= 0 ? Colors.green[700] : Colors.red[700];
+    final maxListHeight = (MediaQuery.of(context).size.height * 0.35)
+        .clamp(220.0, 420.0);
 
     return Scaffold(
       appBar: AppBar(
@@ -311,248 +357,261 @@ class _NaumanCalculatorPageState extends State<NaumanCalculatorPage> {
       body: Container(
         color: Colors.transparent,
         padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            GlassContainer(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextField(
-                    controller: _carNameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Car name',
-                      hintText: 'e.g. Subaru Impreza 2013',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          focusNode: _expectedSellingPriceFocus,
-                          controller: _expectedSellingPriceController,
-                          keyboardType:
-                              const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(
-                            labelText: 'Expected Selling Price',
-                            prefixText: '\$',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: _profitController,
-                          keyboardType:
-                              const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(
-                            labelText: 'Profit',
-                            prefixText: '\$',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _transportationController,
-                          keyboardType:
-                              const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(
-                            labelText: 'Transportation',
-                            prefixText: '\$',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: _auctionFeeController,
-                          keyboardType:
-                              const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(
-                            labelText: 'Auction Fee',
-                            prefixText: '\$',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _dealershipDocController,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Dealership Doc',
-                      prefixText: '\$',
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-                  Text(
-                    'Repairs / Readiness',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _repairFrontDoorShellPaintController,
-                          keyboardType:
-                              const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(
-                            labelText: 'Front Door shell+paint',
-                            prefixText: '\$',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: _repairFenderController,
-                          keyboardType:
-                              const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(
-                            labelText: 'Fender',
-                            prefixText: '\$',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _repairFrontLightController,
-                          keyboardType:
-                              const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(
-                            labelText: 'Front Light',
-                            prefixText: '\$',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: _repairBumperFixBayAreaController,
-                          keyboardType:
-                              const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(
-                            labelText: 'Bumper Fix + Bay Area',
-                            prefixText: '\$',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 12),
-                  Text(
-                    'Repairs Total: \$${_repairsTotal.toStringAsFixed(2)}',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _accidentsController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: false,
-                          ),
-                          decoration: const InputDecoration(
-                            labelText: 'Accidents',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: _carfaxController,
-                          keyboardType:
-                              const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(
-                            labelText: 'Carfax',
-                            prefixText: '\$',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      color: Colors.blueGrey.withOpacity(0.08),
-                      border: Border.all(
-                        color: Colors.blueGrey.withOpacity(0.25),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              GlassContainer(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextField(
+                      controller: _carNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Car name',
+                        hintText: 'e.g. Subaru Impreza 2013',
                       ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(height: 12),
+                    Row(
                       children: [
-                        Text(
-                          'Total: \$${_total.toStringAsFixed(2)}',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w800,
-                              ),
+                        Expanded(
+                          child: TextField(
+                            focusNode: _expectedSellingPriceFocus,
+                            controller: _expectedSellingPriceController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Expected Selling Price',
+                              prefixText: '\$',
+                            ),
+                          ),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Final Bidding Offer: \$${_finalBiddingOffer.toStringAsFixed(2)}',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w900,
-                                color: totalColor,
-                              ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: _profitController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Profit',
+                              prefixText: '\$',
+                            ),
+                          ),
                         ),
                       ],
                     ),
-                  ),
 
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: FilledButton.icon(
-                      onPressed: _saving ? null : _save,
-                      icon: _saving
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.save),
-                      label: const Text('Save'),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _transportationController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Transportation',
+                              prefixText: '\$',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: _auctionFeeController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Auction Fee',
+                              prefixText: '\$',
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _dealershipDocController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Dealership Doc',
+                        prefixText: '\$',
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+                    Text(
+                      'Repairs / Readiness',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _repairFrontDoorShellPaintController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Front Door shell+paint',
+                              prefixText: '\$',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: _repairFenderController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Fender',
+                              prefixText: '\$',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _repairFrontLightController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Front Light',
+                              prefixText: '\$',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: _repairBumperFixBayAreaController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Bumper Fix + Bay Area',
+                              prefixText: '\$',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 12),
+                    Text(
+                      'Repairs Total: \$${_repairsTotal.toStringAsFixed(2)}',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _accidentsController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: false,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Accidents',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: _carfaxController,
+                            keyboardType:
+                                const TextInputType.numberWithOptions(decimal: true),
+                            decoration: const InputDecoration(
+                              labelText: 'Carfax',
+                              prefixText: '\$',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        color: Colors.blueGrey.withOpacity(0.08),
+                        border: Border.all(
+                          color: Colors.blueGrey.withOpacity(0.25),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Total: \$${_total.toStringAsFixed(2)}',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Final Bidding Offer: \$${_finalBiddingOffer.toStringAsFixed(2)}',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                  color: totalColor,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: FilledButton.icon(
+                        onPressed: _saving ? null : _save,
+                        icon: _saving
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.save),
+                        label: const Text('Save'),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
 
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-            Expanded(
-              child: GlassContainer(
+              GlassContainer(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -575,25 +634,27 @@ class _NaumanCalculatorPageState extends State<NaumanCalculatorPage> {
                     ),
                     const SizedBox(height: 12),
                     if (_loadingSaved)
-                      const Expanded(child: Center(child: CircularProgressIndicator()))
+                      const Center(child: CircularProgressIndicator())
                     else if (_saved.isEmpty)
-                      const Expanded(
-                        child: Center(
-                          child: Text(
-                            'No saved entries yet.\nFill the calculator and press Save.',
-                            textAlign: TextAlign.center,
-                          ),
+                      const Center(
+                        child: Text(
+                          'No saved entries yet.\nFill the calculator and press Save.',
+                          textAlign: TextAlign.center,
                         ),
                       )
                     else
-                      Expanded(
+                      SizedBox(
+                        height: maxListHeight,
                         child: ListView.separated(
                           itemCount: _saved.length,
-                          separatorBuilder: (_, __) =>
-                              const Divider(height: 1, color: Colors.white24),
+                          separatorBuilder: (_, __) => const Divider(
+                            height: 1,
+                            color: Colors.white24,
+                          ),
                           itemBuilder: (context, index) {
                             final entry = _saved[index];
-                            final created = TimeOfDay.fromDateTime(entry.createdAt)
+                            final created = TimeOfDay.fromDateTime(
+                                    entry.createdAt)
                                 .format(context);
                             return ListTile(
                               title: Text(entry.carName),
@@ -604,12 +665,16 @@ class _NaumanCalculatorPageState extends State<NaumanCalculatorPage> {
                                 children: [
                                   IconButton(
                                     tooltip: 'View',
-                                    icon: const Icon(Icons.remove_red_eye_outlined),
+                                    icon: const Icon(
+                                      Icons.remove_red_eye_outlined,
+                                    ),
                                     onPressed: () => _viewEntry(entry),
                                   ),
                                   IconButton(
                                     tooltip: 'Delete',
-                                    icon: const Icon(Icons.delete_outline),
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                    ),
                                     onPressed: () => _deleteEntry(entry.id),
                                   ),
                                 ],
@@ -621,8 +686,9 @@ class _NaumanCalculatorPageState extends State<NaumanCalculatorPage> {
                   ],
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );
