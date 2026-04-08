@@ -145,6 +145,16 @@ class _CarDetailPageState extends State<CarDetailPage> {
       (_car?.buyingPrice ?? 0) +
       _items.fold(0, (sum, i) => sum + i.amount.toDouble());
 
+  double get _paidAmount => _items.fold<double>(0, (sum, i) {
+        if (i.status.toLowerCase() == 'paid') return sum + i.amount;
+        return sum;
+      });
+
+  double get _unpaidAmount => _items.fold<double>(0, (sum, i) {
+        if (i.status.toLowerCase() != 'paid') return sum + i.amount;
+        return sum;
+      });
+
   Future<void> _pickPurchaseDate() async {
     final now = DateTime.now();
     final initial = _purchaseDate ?? DateTime(now.year, now.month, now.day);
@@ -360,9 +370,19 @@ class _CarDetailPageState extends State<CarDetailPage> {
                     'Cost details',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  Text(
-                    'Total: \$${_totalCost.toStringAsFixed(2)}',
-                    style: Theme.of(context).textTheme.titleMedium,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Total: \$${_totalCost.toStringAsFixed(2)}',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Paid: \$${_paidAmount.toStringAsFixed(2)}  |  Unpaid: \$${_unpaidAmount.toStringAsFixed(2)}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
                   ),
                 ],
               ),

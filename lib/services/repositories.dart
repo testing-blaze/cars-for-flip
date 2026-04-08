@@ -87,7 +87,7 @@ class CarRepository {
     // Join cars with aggregated cost items.
     final res = await supabase
         .from('cars')
-        .select('*, car_cost_items(amount)')
+        .select('*, car_cost_items(amount,status,description,date)')
         .eq('profile_year_id', profileYearId)
         .order('created_at');
 
@@ -95,12 +95,26 @@ class CarRepository {
       final items = (row['car_cost_items'] as List<dynamic>? ?? [])
           .cast<Map<String, dynamic>>();
       final buyingPrice = (row['buying_price'] as num?)?.toDouble() ?? 0;
+      final paidAmount = items.fold<double>(0, (sum, item) {
+        final status = (item['status'] as String? ?? '').toLowerCase();
+        final amount = (item['amount'] as num?)?.toDouble() ?? 0;
+        if (status == 'paid') return sum + amount;
+        return sum;
+      });
+      final unpaidAmount = items.fold<double>(0, (sum, item) {
+        final status = (item['status'] as String? ?? '').toLowerCase();
+        final amount = (item['amount'] as num?)?.toDouble() ?? 0;
+        if (status != 'paid') return sum + amount;
+        return sum;
+      });
       final totalCost = items.fold<double>(
         buyingPrice,
         (sum, item) => sum + (item['amount'] as num).toDouble(),
       );
       return {
         ...row,
+        'paid_amount': paidAmount,
+        'unpaid_amount': unpaidAmount,
         'total_cost': totalCost,
       };
     }).toList();

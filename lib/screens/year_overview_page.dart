@@ -332,6 +332,8 @@ class _YearOverviewPageState extends State<YearOverviewPage> {
                                   DataColumn(label: Text('Readiness')),
                                   DataColumn(label: Text('Status')),
                                   DataColumn(label: Text('Selling Price')),
+                                  DataColumn(label: Text('Paid Cost')),
+                                  DataColumn(label: Text('Unpaid Cost')),
                                   DataColumn(label: Text('Total Cost')),
                                   DataColumn(label: Text('PnL')),
                                   DataColumn(label: Text('Details')),
@@ -344,6 +346,10 @@ class _YearOverviewPageState extends State<YearOverviewPage> {
                                   final status = row['status'] as String? ?? '';
                                   final sellingPrice =
                                       (row['selling_price'] as num?)?.toDouble();
+                                  final paidAmount =
+                                      (row['paid_amount'] as double?) ?? 0;
+                                  final unpaidAmount =
+                                      (row['unpaid_amount'] as double?) ?? 0;
                                   final totalCost =
                                       (row['total_cost'] as double?) ?? 0;
                                   final carPnL =
@@ -447,6 +453,22 @@ class _YearOverviewPageState extends State<YearOverviewPage> {
                                             sellingPrice
                                                     ?.toStringAsFixed(2) ??
                                                 '-',
+                                          ),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Text(
+                                            paidAmount.toStringAsFixed(2),
+                                          ),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Text(
+                                            unpaidAmount.toStringAsFixed(2),
                                           ),
                                         ),
                                       ),

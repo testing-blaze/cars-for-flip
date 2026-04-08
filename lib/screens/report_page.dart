@@ -19,9 +19,11 @@ class ReportPage extends StatefulWidget {
 class _ReportPageState extends State<ReportPage> {
   final _yearRepo = YearRepository();
   final _carRepo = CarRepository();
+  final _costRepo = CarCostRepository();
   final _searchController = TextEditingController();
   String _statusFilter = 'All';
   String _readinessFilter = 'All';
+  String _repairReportCarId = 'all';
   ProfileYear? _selectedYear;
   List<ProfileYear> _years = [];
   List<Map<String, dynamic>> _cars = [];
@@ -54,6 +56,10 @@ class _ReportPageState extends State<ReportPage> {
     final cars = await _carRepo.getCarsForYearWithTotals(year.id);
     setState(() {
       _cars = cars;
+      final exists = _repairReportCarId == 'all'
+          ? true
+          : cars.any((c) => c['id'] == _repairReportCarId);
+      if (!exists) _repairReportCarId = 'all';
       _loadingCars = false;
     });
   }
@@ -85,6 +91,13 @@ class _ReportPageState extends State<ReportPage> {
       final totalCost = (row['total_cost'] as double?) ?? 0;
       return sum + selling - totalCost;
     });
+  }
+
+  List<Map<String, dynamic>> get _boughtCars {
+    return _cars.where((row) {
+      final buying = (row['buying_price'] as num?)?.toDouble() ?? 0;
+      return buying > 0;
+    }).toList();
   }
 
   String _buildCsv() {
@@ -127,6 +140,86 @@ class _ReportPageState extends State<ReportPage> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Report saved as $filename')),
+      );
+    }
+  }
+
+  Future<void> _saveRepairReport() async {
+    final boughtCars = _boughtCars;
+    if (boughtCars.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No bought cars found for repair report.')),
+        );
+      }
+      return;
+    }
+
+    final selectedCars = _repairReportCarId == 'all'
+        ? boughtCars
+        : boughtCars
+            .where((row) => (row['id'] as String?) == _repairReportCarId)
+            .toList();
+
+    if (selectedCars.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Selected car not found.')),
+        );
+      }
+      return;
+    }
+
+    const sep = ',';
+    final sb = StringBuffer();
+    sb.writeln(
+      'Profile${sep}Year${sep}Car${sep}VIN${sep}Repair Date${sep}Status${sep}Description${sep}Amount',
+    );
+
+    double total = 0;
+    double paid = 0;
+    double unpaid = 0;
+
+    for (final car in selectedCars) {
+      final carId = car['id'] as String;
+      final model = (car['model'] as String? ?? '').replaceAll(',', ' ');
+      final vin = (car['vin'] as String? ?? '').replaceAll(',', ' ');
+      final items = await _costRepo.getCostItemsForCar(carId);
+
+      for (final item in items) {
+        final status = item.status.trim();
+        final statusLower = status.toLowerCase();
+        total += item.amount;
+        if (statusLower == 'paid') {
+          paid += item.amount;
+        } else {
+          unpaid += item.amount;
+        }
+        sb.writeln(
+          '${widget.profile.name.replaceAll(sep, " ")}$sep${_selectedYear?.year ?? ""}$sep$model$sep$vin$sep${DateFormat('yyyy-MM-dd').format(item.date)}$sep${status.replaceAll(sep, " ")}$sep${item.description.replaceAll(sep, " ")}$sep${item.amount.toStringAsFixed(2)}',
+        );
+      }
+    }
+
+    sb.writeln();
+    sb.writeln('Summary${sep}Value');
+    sb.writeln('Total Repair Amount$sep${total.toStringAsFixed(2)}');
+    sb.writeln('Paid Amount$sep${paid.toStringAsFixed(2)}');
+    sb.writeln('Unpaid Amount$sep${unpaid.toStringAsFixed(2)}');
+
+    final dateStr = DateFormat('yyyy-MM-dd_Hms').format(DateTime.now());
+    final selectedName = _repairReportCarId == 'all'
+        ? 'all_bought_cars'
+        : (selectedCars.first['model'] as String? ?? 'car')
+            .replaceAll(' ', '_')
+            .toLowerCase();
+    final filename =
+        'FlipTrack_Repair_Report_${widget.profile.name}_${_selectedYear?.year ?? "all"}_${selectedName}_$dateStr.csv';
+    await saveReportToDevice(filename, sb.toString());
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Repair report saved as $filename')),
       );
     }
   }
@@ -267,6 +360,48 @@ class _ReportPageState extends State<ReportPage> {
               ],
             ),
             const SizedBox(height: 8),
+            GlassContainer(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: _repairReportCarId,
+                      decoration: const InputDecoration(
+                        labelText: 'Repair report scope',
+                      ),
+                      items: [
+                        const DropdownMenuItem(
+                          value: 'all',
+                          child: Text('All bought cars'),
+                        ),
+                        ..._boughtCars.map(
+                          (row) => DropdownMenuItem(
+                            value: row['id'] as String,
+                            child: Text(
+                              '${row['model'] as String? ?? 'Car'} (${row['vin'] as String? ?? ''})',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => _repairReportCarId = value);
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    onPressed: _boughtCars.isEmpty ? null : _saveRepairReport,
+                    icon: const Icon(Icons.download_for_offline_outlined),
+                    label: const Text('Save repair report'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
             Expanded(
               child: _loadingCars
                   ? const Center(child: CircularProgressIndicator())
@@ -292,6 +427,8 @@ class _ReportPageState extends State<ReportPage> {
                                   DataColumn(label: Text('Status')),
                                   DataColumn(label: Text('Buying')),
                                   DataColumn(label: Text('Selling')),
+                                  DataColumn(label: Text('Paid Cost')),
+                                  DataColumn(label: Text('Unpaid Cost')),
                                   DataColumn(label: Text('Total Cost')),
                                   DataColumn(label: Text('PnL')),
                                   DataColumn(label: Text('Details')),
@@ -303,6 +440,8 @@ class _ReportPageState extends State<ReportPage> {
                                   final status = row['status'] as String? ?? '';
                                   final buying = (row['buying_price'] as num?)?.toDouble();
                                   final selling = (row['selling_price'] as num?)?.toDouble();
+                                  final paidAmount = (row['paid_amount'] as double?) ?? 0;
+                                  final unpaidAmount = (row['unpaid_amount'] as double?) ?? 0;
                                   final totalCost = (row['total_cost'] as double?) ?? 0;
                                   final pnl = (selling ?? 0) - totalCost;
                                   return DataRow(
@@ -313,6 +452,8 @@ class _ReportPageState extends State<ReportPage> {
                                       DataCell(Text(status)),
                                       DataCell(Text(buying?.toStringAsFixed(2) ?? '-')),
                                       DataCell(Text(selling?.toStringAsFixed(2) ?? '-')),
+                                      DataCell(Text(paidAmount.toStringAsFixed(2))),
+                                      DataCell(Text(unpaidAmount.toStringAsFixed(2))),
                                       DataCell(Text(totalCost.toStringAsFixed(2))),
                                       DataCell(
                                         Text(
