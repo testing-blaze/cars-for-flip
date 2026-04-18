@@ -24,6 +24,10 @@ class _ReportPageState extends State<ReportPage> {
   String _statusFilter = 'All';
   String _readinessFilter = 'All';
   String _repairReportCarId = 'all';
+  bool _repairPreviewLoading = false;
+  double _repairPreviewTotal = 0;
+  double _repairPreviewPaid = 0;
+  double _repairPreviewUnpaid = 0;
   ProfileYear? _selectedYear;
   List<ProfileYear> _years = [];
   List<Map<String, dynamic>> _cars = [];
@@ -61,6 +65,55 @@ class _ReportPageState extends State<ReportPage> {
           : cars.any((c) => c['id'] == _repairReportCarId);
       if (!exists) _repairReportCarId = 'all';
       _loadingCars = false;
+    });
+    await _loadRepairPreview();
+  }
+
+  Future<void> _loadRepairPreview() async {
+    final boughtCars = _boughtCars;
+    if (boughtCars.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _repairPreviewLoading = false;
+        _repairPreviewTotal = 0;
+        _repairPreviewPaid = 0;
+        _repairPreviewUnpaid = 0;
+      });
+      return;
+    }
+
+    final selectedCars = _repairReportCarId == 'all'
+        ? boughtCars
+        : boughtCars
+            .where((row) => (row['id'] as String?) == _repairReportCarId)
+            .toList();
+
+    if (!mounted) return;
+    setState(() => _repairPreviewLoading = true);
+
+    double total = 0;
+    double paid = 0;
+    double unpaid = 0;
+
+    for (final car in selectedCars) {
+      final carId = car['id'] as String;
+      final items = await _costRepo.getCostItemsForCar(carId);
+      for (final item in items) {
+        total += item.amount;
+        if (item.status.toLowerCase() == 'paid') {
+          paid += item.amount;
+        } else {
+          unpaid += item.amount;
+        }
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _repairPreviewTotal = total;
+      _repairPreviewPaid = paid;
+      _repairPreviewUnpaid = unpaid;
+      _repairPreviewLoading = false;
     });
   }
 
@@ -388,6 +441,7 @@ class _ReportPageState extends State<ReportPage> {
                       onChanged: (value) {
                         if (value != null) {
                           setState(() => _repairReportCarId = value);
+                          _loadRepairPreview();
                         }
                       },
                     ),
@@ -400,6 +454,27 @@ class _ReportPageState extends State<ReportPage> {
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 8),
+            GlassContainer(
+              padding: const EdgeInsets.all(12),
+              child: _repairPreviewLoading
+                  ? const LinearProgressIndicator()
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Repair totals',
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                        Text(
+                          'Total: \$${_repairPreviewTotal.toStringAsFixed(2)}  |  Paid: \$${_repairPreviewPaid.toStringAsFixed(2)}  |  Unpaid: \$${_repairPreviewUnpaid.toStringAsFixed(2)}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
             ),
             const SizedBox(height: 8),
             Expanded(
@@ -427,9 +502,9 @@ class _ReportPageState extends State<ReportPage> {
                                   DataColumn(label: Text('Status')),
                                   DataColumn(label: Text('Buying')),
                                   DataColumn(label: Text('Selling')),
-                                  DataColumn(label: Text('Paid Cost')),
-                                  DataColumn(label: Text('Unpaid Cost')),
-                                  DataColumn(label: Text('Total Cost')),
+                                  DataColumn(label: Text('Paid')),
+                                  DataColumn(label: Text('Unpaid')),
+                                  DataColumn(label: Text('Total')),
                                   DataColumn(label: Text('PnL')),
                                   DataColumn(label: Text('Details')),
                                 ],

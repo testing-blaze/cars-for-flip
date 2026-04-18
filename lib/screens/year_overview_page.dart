@@ -322,19 +322,20 @@ class _YearOverviewPageState extends State<YearOverviewPage> {
                           child: SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: SizedBox(
-                              width: 900,
+                              // Increased because we added Paid/Unpaid/Total columns.
+                              width: 1120,
                               child: DataTable(
                                 showCheckboxColumn: false,
-                                columnSpacing: 20,
+                                columnSpacing: 16,
                                 columns: const [
                                   DataColumn(label: Text('Car')),
                                   DataColumn(label: Text('VIN')),
                                   DataColumn(label: Text('Readiness')),
                                   DataColumn(label: Text('Status')),
                                   DataColumn(label: Text('Selling Price')),
-                                  DataColumn(label: Text('Paid Cost')),
-                                  DataColumn(label: Text('Unpaid Cost')),
-                                  DataColumn(label: Text('Total Cost')),
+                                  DataColumn(label: Text('Paid')),
+                                  DataColumn(label: Text('Unpaid')),
+                                  DataColumn(label: Text('Total')),
                                   DataColumn(label: Text('PnL')),
                                   DataColumn(label: Text('Details')),
                                 ],
